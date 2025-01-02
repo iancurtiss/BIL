@@ -1,0 +1,37 @@
+type Hash = nat;
+type Transaction = record {
+  sender: principal;
+  recipient: principal;
+  amount: nat64;
+  timestamp: nat64;
+};
+type Block = record {
+  header: BlockHeader;
+  transactions: vec Transaction;
+  nonce: nat;
+  hash: Hash;
+};
+type BlockHeader = record {
+  version: nat32;
+  height: nat64;
+  prev_hash: Hash;
+  merkle_root: Hash;
+  timestamp: nat64;
+  difficulty: nat32;
+};
+type MinerState = record {
+  owner : principal;
+  blocks_mined : nat64;
+  ledger_id : principal;
+  cycles_burned: nat64;
+  last_mining_timestamp: nat64;
+  time_spent_mining: nat64;
+  mining_cycle: nat64;
+  is_mining: bool;
+  current_block: opt Block;
+};
+service : (principal) -> {
+  get_state : () -> (MinerState) query;
+  cycles_left: () -> (nat64) query;
+  receive: () -> ();
+}

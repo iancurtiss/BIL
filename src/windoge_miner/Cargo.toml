@@ -1,0 +1,19 @@
+[package]
+name = "windoge_miner"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "windoge_miner"
+path = "src/main.rs"
+
+[dependencies]
+ic-cdk = "0.16.0"
+ic-cdk-timers = "0.11.0"
+ic0 = "0.23.0"
+candid = "0.10.10"
+serde = "1.0.216"
+rapidhash = "1.2.0"

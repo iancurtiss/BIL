@@ -1,0 +1,26 @@
+[package]
+name = "windoge_pow_backend"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "windoge_pow_backend"
+path = "src/main.rs"
+
+[dependencies]
+ic-management-canister-types = { git = "https://github.com/dfinity/ic/", rev = "3025f56fc3d6babd64ec1bc84d61cf937fd2b633" }
+ic-stable-structures = "0.6.5"
+ic-base-types = { git = "https://github.com/dfinity/ic/", rev = "3025f56fc3d6babd64ec1bc84d61cf937fd2b633" }
+ic-cdk-timers = "0.11.0"
+ic-cdk = "0.17.0"
+cycles-minting-canister = { git = "https://github.com/dfinity/ic/", rev = "3025f56fc3d6babd64ec1bc84d61cf937fd2b633" }
+candid = "0.10.10"
+ciborium = "0.2.2"
+rand = "0.8"
+serde = "1.0.209" 
+serde_bytes = "0.11.15"
+rapidhash = "1.2.0"
+num-traits = "0.2.14"

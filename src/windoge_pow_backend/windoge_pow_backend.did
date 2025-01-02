@@ -1,0 +1,64 @@
+type Hash = nat;
+type Transaction = record {
+    sender: principal;
+    recipient: principal;
+    amount: nat64;
+    timestamp: nat64;
+};
+type TransactionArgs = record {
+    recipient: principal;
+    amount: nat64;
+};
+type Block = record {
+    header: BlockHeader;
+    transactions: vec Transaction;
+    nonce: nat;
+    hash: Hash;
+};
+type BlockHeader = record {
+    version: nat32;
+    height: nat64;
+    prev_hash: Hash;
+    merkle_root: Hash;
+    timestamp: nat64;
+    difficulty: nat32;
+};
+type State = record {
+    bil_ledger_id : principal;
+    current_difficulty: nat32;
+    transaction_count: nat64;
+    block_height: nat64;
+    average_block_time: nat64;
+    exe_burned: nat64;
+    miner_to_owner : vec record { principal; principal };
+};
+type Stats = record {
+    cycles_burned: nat64;
+    timestamp: nat64;
+    solve_time: nat64;
+    miner: principal;
+};
+type LeaderBoardEntry = record {
+    owner: principal;
+    miner_count: nat64;
+    block_count: nat64;
+};
+service : {
+    create_transaction: (transaction: TransactionArgs) -> (variant { Ok : text; Err : text });
+    spawn_miner: (block: nat64) -> (variant { Ok : principal; Err : text });
+    topup_miner: (miner: principal, block: nat64) -> (variant { Ok : text; Err : text });
+    get_all_stats: () -> (vec Stats) query;
+    get_all_blocks: () -> (vec Block) query;
+    get_latest_block: () -> (opt Block) query;
+    get_stats: (index: nat64) -> (opt Stats) query;
+    get_mempool: () -> (vec Transaction) query;
+    get_state : () -> (State) query;
+    get_balance_of: (user: principal) -> (nat64) query;
+    get_leaderboard: () -> (vec LeaderBoardEntry) query;
+    get_miners: (user: principal) -> (vec principal) query;
+    get_difficulty: () -> (nat32) query;
+    get_next_halving: () -> (nat64) query;
+    get_current_rewards: () -> (nat64) query;
+    get_miner_count: () -> (nat64) query;
+    get_transaction_count: () -> (nat64) query;
+}

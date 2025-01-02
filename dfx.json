@@ -1,0 +1,23 @@
+{
+  "canisters": {
+    "windoge_pow_backend": {
+      "candid": "src/windoge_pow_backend/windoge_pow_backend.did",
+      "package": "windoge_pow_backend",
+      "type": "rust"
+    },
+    "windoge_miner": {
+      "candid": "src/windoge_miner/windoge_miner.did",
+      "package": "windoge_miner",
+      "gzip": true,
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
