@@ -22,9 +22,10 @@ fn receive() {
 
     mutate_state(|s| {
         s.mining_start_cycles += accepted_cycles as u64;
+        s.mining_temp_cycles += accepted_cycles as u64;
     });
 
-    ic_cdk::println!("Received cycles: {}", accepted_cycles);
+    ic_cdk::println!("Received cycles!: {}", accepted_cycles);
 }
 
 #[update(hidden = true)]

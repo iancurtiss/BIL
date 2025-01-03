@@ -97,13 +97,16 @@ pub async fn find_solution() {
 }
 
 fn update_mining_stats(is_mining: bool) {
+    let current_balance = ic_cdk::api::canister_balance();
     mutate_state(|s| {
+        if current_balance < s.mining_temp_cycles {
+            s.cycles_burned += s.mining_temp_cycles - current_balance;
+        }
+        s.mining_temp_cycles = current_balance;
         s.time_spent_mining += ic_cdk::api::time() - s.mining_temp_time;
-        s.cycles_burned += s.mining_temp_cycles - ic_cdk::api::canister_balance();
         s.is_mining = is_mining;
         s.last_mining_timestamp = ic_cdk::api::time();
         s.mining_temp_time = ic_cdk::api::time();
-        s.mining_temp_cycles = ic_cdk::api::canister_balance();
     });
 }
 
