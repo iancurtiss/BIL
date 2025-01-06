@@ -115,6 +115,26 @@ pub async fn reinstall_code(
     Ok(())
 }
 
+pub async fn upgrade_code(
+    canister_id: Principal,
+    wasm_module: Vec<u8>,
+    arg: Vec<u8>
+) -> Result<(), CallError> {
+    let install_code = InstallCodeArgs {
+        mode: CanisterInstallMode::Upgrade,
+        canister_id: PrincipalId::from(canister_id),
+        wasm_module,
+        arg,
+        compute_allocation: None,
+        memory_allocation: None,
+        sender_canister_version: None,
+    };
+
+    call("install_code", 0, &install_code).await?;
+
+    Ok(())
+}
+
 pub async fn create_canister(cycles_for_canister_creation: u64) -> Result<Principal, CallError> {
     let create_args = CreateCanisterArgs {
         settings: Some(CanisterSettingsArgs {

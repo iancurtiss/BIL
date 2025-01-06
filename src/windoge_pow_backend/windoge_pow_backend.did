@@ -30,7 +30,10 @@ type State = record {
     block_height: nat64;
     average_block_time: nat64;
     exe_burned: nat64;
+    current_block: opt Block;
+    miner_to_mined_block: vec record { principal; nat64 };
     miner_to_owner : vec record { principal; principal };
+    updated_miners: vec principal;
 };
 type Stats = record {
     cycles_burned: nat64;
@@ -49,6 +52,7 @@ service : {
     topup_miner: (miner: principal, block: nat64) -> (variant { Ok : text; Err : text });
     get_all_stats: () -> (vec Stats) query;
     get_all_blocks: () -> (vec Block) query;
+    get_current_block: () -> (opt Block) query;
     get_latest_block: () -> (opt Block) query;
     get_stats: (index: nat64) -> (opt Stats) query;
     get_mempool: () -> (vec Transaction) query;
@@ -60,5 +64,4 @@ service : {
     get_next_halving: () -> (nat64) query;
     get_current_rewards: () -> (nat64) query;
     get_miner_count: () -> (nat64) query;
-    get_transaction_count: () -> (nat64) query;
 }

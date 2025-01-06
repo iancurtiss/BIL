@@ -2,13 +2,21 @@ use std::hash::Hasher;
 use rapidhash::RapidHasher;
 use windoge_pow_backend::memory::{
     add_balance,
-    add_state,
+    add_block_mined,
+    add_burned_exe,
     all_blocks,
     all_stats,
     block_count,
+    current_block,
+    difficulty,
+    get_all_updated_miners,
+    get_average_block_time,
     get_balance,
-    get_last_state,
+    get_burned_exe,
+    get_miner_to_owner_and_index,
     get_stat,
+    get_transaction_count,
+    get_users_to_block_mined,
     insert_block,
     insert_new_miner,
     insert_new_transaction,
@@ -16,7 +24,10 @@ use windoge_pow_backend::memory::{
     latest_block,
     miner_count,
     sub_balance,
-    transaction_count,
+    update_average_block_time,
+    update_current_block,
+    update_difficulty,
+    update_transaction_count,
     Block,
     Stats,
     Transaction,
@@ -34,7 +45,7 @@ use windoge_pow_backend::{
     SEC_NANOS,
 };
 use candid::{ CandidType, Decode, Encode, Principal };
-use ic_cdk::{ init, post_upgrade, pre_upgrade, query, update };
+use ic_cdk::{ init, post_upgrade, query, update };
 
 const WINDOGE_LEDGER_ID: &str = "rh2pm-ryaaa-aaaan-qeniq-cai";
 const WINDOGE_RECEIVER: &str = "zp2fk-qfdts-3jpq4-oe2lv-xphrr-akxnj-dgtwc-f2psp-wsomh-e5gyz-aae";
@@ -43,7 +54,6 @@ const BLOCK_TIME: u64 = 300 * SEC_NANOS; // 5 minutes
 const MAX_DIFFICULTY: u32 = 48;
 const MIN_DIFFICULTY: u32 = 24;
 const TRANSACTION_LIMIT: usize = 150;
-const BLOCK_BATCH_SIZE: usize = 100;
 
 fn main() {}
 
@@ -58,21 +68,58 @@ fn init() {
     start_next_block(1);
 }
 
-#[pre_upgrade]
-fn pre_upgrade() {
-    let state = read_state(|s| s.clone());
-    let _ = add_state(state);
-}
-
 #[post_upgrade]
 fn post_upgrade() {
-    if let Some(old_state) = get_last_state() {
-        replace_state(old_state);
+    let mut state = State::new();
+
+    // restore miners
+    for (miner, (owner, index)) in get_miner_to_owner_and_index() {
+        state.new_miner(miner, owner, index);
     }
 
-    mutate_state(|s| {
-        s.bil_ledger_id = Principal::from_text(BIL_LEDGER_ID).unwrap();
-    });
+    // restore burned exe
+    let exe = get_burned_exe();
+    state.exe_burned = exe;
+
+    // restore transaction count
+    let transaction_count = get_transaction_count();
+    state.transaction_count = transaction_count;
+
+    // restore average block time
+    let block_time = get_average_block_time();
+    state.average_block_time = block_time;
+
+    // restore difficulty
+    let current_diff = difficulty();
+    state.current_difficulty = current_diff as u32;
+
+    // restore block height
+    if let Some(block) = latest_block() {
+        state.block_height = block.header.height;
+    }
+
+    // restore current block
+    let block = current_block();
+    if block.len() > 0 {
+        state.current_block = Some(block[0].clone());
+    }
+
+    // restore user to mined block
+    let user_to_blocks = get_users_to_block_mined();
+    for (user, count) in user_to_blocks {
+        state.miner_to_mined_block
+            .entry(user)
+            .and_modify(|e| {
+                *e += count;
+            })
+            .or_insert(count);
+    }
+
+    // restore updated miners
+    let updated_miners = get_all_updated_miners();
+    state.updated_miners = updated_miners;
+
+    replace_state(state);
 
     start_next_block(1);
 }
@@ -108,8 +155,13 @@ fn get_current_rewards() -> u64 {
 }
 
 #[query]
+fn get_current_block() -> Option<Block> {
+    read_state(|s| s.current_block.clone())
+}
+
+#[query]
 fn get_next_halving() -> u64 {
-    let mined_blocks = read_state(|s| s.mined_block_count());
+    let mined_blocks = block_count();
     let blocks_to_next_halving = BLOCK_HALVING - (mined_blocks % BLOCK_HALVING);
     blocks_to_next_halving
 }
@@ -137,11 +189,6 @@ fn get_miners(user: Principal) -> Vec<Principal> {
 #[query]
 fn get_miner_count() -> u64 {
     miner_count()
-}
-
-#[query]
-fn get_transaction_count() -> u64 {
-    transaction_count()
 }
 
 #[update]
@@ -180,6 +227,7 @@ async fn topup_miner(miner: Principal, block_index: u64) -> Result<String, Strin
                     mutate_state(|s| {
                         s.exe_burned += burn_amount;
                     });
+                    let _ = add_burned_exe(burn_amount);
                 }
                 Err(e) => ic_cdk::println!("Error burning {} EXE: {:?}", burn_amount, e),
             }
@@ -297,34 +345,23 @@ async fn spawn_miner(block_index: u64) -> Result<Principal, String> {
     insert_new_miner(canister_id, ic_cdk::caller(), block_index);
     let _ = insert_new_transaction(block_index);
 
+    let burned_amount = (WINDOGE_MINER_CREATION_AMOUNT * 40) / 100;
     match
         burn_exe(BurnArgs {
             memo: None,
             from_subaccount: None,
             created_at_time: None,
-            amount: ((WINDOGE_MINER_CREATION_AMOUNT * 40) / 100).into(),
+            amount: burned_amount.into(),
         }).await
     {
         Ok(index) => {
-            ic_cdk::println!(
-                "Burned {} EXE, index: {:?}",
-                (WINDOGE_MINER_CREATION_AMOUNT * 40) / 100,
-                index
-            );
+            ic_cdk::println!("Burned {} EXE, index: {:?}", burned_amount, index);
             mutate_state(|s| {
-                s.exe_burned += (WINDOGE_MINER_CREATION_AMOUNT * 40) / 100;
+                s.exe_burned += burned_amount;
             });
+            let _ = add_burned_exe(burned_amount);
         }
         Err(e) => ic_cdk::println!("Error burning EXE: {:?}", e),
-    }
-
-    if let Some(block) = read_state(|s| s.current_block.clone()) {
-        ic_cdk::spawn(async move {
-            let _: Result<(), _> = ic_cdk::api::call::call(canister_id, "push_block", (
-                block,
-                2_u32,
-            )).await;
-        });
     }
 
     ic_cdk::println!("Miner {} spawned", canister_id.to_text());
@@ -339,13 +376,18 @@ async fn submit_solution(block: Block, stats: Stats) -> Result<bool, String> {
         return Err(e);
     }
 
+    let miner_owner = read_state(|s|
+        s.miner_to_owner.get(&ic_cdk::caller()).cloned().unwrap_or(Principal::anonymous())
+    );
+
     mutate_state(|s| {
         s.miner_to_mined_block
-            .entry(ic_cdk::caller())
+            .entry(miner_owner)
             .and_modify(|e| {
                 *e += 1;
             })
             .or_insert(1);
+        add_block_mined(miner_owner);
 
         s.miner_to_burned_cycles
             .entry(ic_cdk::caller())
@@ -354,12 +396,15 @@ async fn submit_solution(block: Block, stats: Stats) -> Result<bool, String> {
             })
             .or_insert(stats.cycles_burned);
 
-        s.average_block_time =
+        let block_time =
             (s.average_block_time * (block.header.height - 1) + stats.solve_time) /
             block.header.height;
+        s.average_block_time = block_time;
+        let _ = update_average_block_time(block_time);
 
         s.block_height = block.header.height;
         s.transaction_count += block.transactions.len() as u64;
+        let _ = update_transaction_count(block.transactions.len() as u64);
 
         for tx in &block.transactions {
             if let Some(pos) = s.mempool.iter().position(|x| x == tx) {
@@ -407,9 +452,6 @@ async fn submit_solution(block: Block, stats: Stats) -> Result<bool, String> {
         }
     }
 
-    let miner_owner = read_state(|s|
-        s.miner_to_owner.get(&ic_cdk::caller()).cloned().unwrap_or(Principal::anonymous())
-    );
     add_balance(
         miner_owner,
         read_state(|s| s.current_rewards())
@@ -420,6 +462,7 @@ async fn submit_solution(block: Block, stats: Stats) -> Result<bool, String> {
         if sec > 60 && read_state(|s| s.current_difficulty) < MAX_DIFFICULTY {
             mutate_state(|s| {
                 s.current_difficulty = s.current_difficulty + 1;
+                let _ = update_difficulty(s.current_difficulty as u64);
             });
         }
     } else {
@@ -427,6 +470,7 @@ async fn submit_solution(block: Block, stats: Stats) -> Result<bool, String> {
         if sec > 60 && read_state(|s| s.current_difficulty) > MIN_DIFFICULTY {
             mutate_state(|s| {
                 s.current_difficulty = s.current_difficulty - 1;
+                let _ = update_difficulty(s.current_difficulty as u64);
             });
         }
     }
@@ -486,44 +530,6 @@ fn validate_solution(block: &Block) -> Result<(), String> {
     Ok(())
 }
 
-#[update(hidden = true)]
-async fn distribute_block(block: Block, start: u64) -> Result<(), String> {
-    if ic_cdk::caller() != ic_cdk::id() {
-        return Err("caller is not allowed".to_string());
-    }
-
-    let miners = read_state(|s| s.miner_to_owner.keys().cloned().collect::<Vec<Principal>>());
-    let batch_start = std::cmp::min(start as usize, miners.len());
-    let batch_end = std::cmp::min((batch_start as usize) + BLOCK_BATCH_SIZE, miners.len());
-
-    ic_cdk::println!("Distributing block to miners {} to {}", batch_start, batch_end);
-    
-    for i in batch_start..batch_end {
-        let miner = &miners[i];
-        push_block(block.clone(), miner.clone(), (i + 1) as u32);
-    }
-
-    if batch_end < miners.len() {
-        ic_cdk::spawn(async move {
-            let _: Result<(), _> = ic_cdk::api::call::call(ic_cdk::id(), "distribute_block", (
-                block,
-                batch_end as u64,
-            )).await;
-        });
-    }
-
-    Ok(())
-}
-
-fn push_block(block: Block, miner: Principal, miner_id: u32) {
-    ic_cdk::spawn(async move {
-        let _: Result<(), _> = ic_cdk::api::call::call(miner, "push_block", (
-            block,
-            miner_id,
-        )).await;
-    });
-}
-
 fn start_next_block(sec: u64) {
     ic_cdk::println!("Starting next block in {} seconds", sec);
     ic_cdk_timers::set_timer(std::time::Duration::from_secs(sec), || {
@@ -542,6 +548,9 @@ fn create_block() {
     ic_cdk::println!("Creating block with {} transactions", transactions.len());
 
     let prev_block = latest_block().unwrap();
+    mutate_state(|s| {
+        s.current_difficulty = 30;
+    });
     let difficulty = read_state(|s| s.current_difficulty);
     match Block::new(&prev_block, transactions, difficulty) {
         Ok(block) => {
@@ -549,12 +558,7 @@ fn create_block() {
             mutate_state(|s| {
                 s.current_block = Some(block.clone());
             });
-            ic_cdk::spawn(async move {
-                let _: Result<(), _> = ic_cdk::api::call::call(ic_cdk::id(), "distribute_block", (
-                    block,
-                    0 as u64
-                )).await;
-            });
+            update_current_block(block.clone());
         }
         Err(e) => {
             ic_cdk::println!("Error creating block: {:?}", e);
@@ -793,11 +797,17 @@ fn tokens_to_cycles(token_amount: u64) -> u64 {
     total_cycles as u64
 }
 
-#[derive(CandidType, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(CandidType, PartialOrd, Eq, PartialEq, Clone)]
 struct LeaderBoardEntry {
     owner: Principal,
     miner_count: usize,
     block_count: u64,
+}
+
+impl Ord for LeaderBoardEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.block_count.cmp(&self.block_count)
+    }
 }
 
 #[query]
@@ -805,47 +815,18 @@ fn get_leaderboard() -> Vec<LeaderBoardEntry> {
     use std::collections::BTreeSet;
 
     read_state(|s| {
-        let mut principal_counts: Vec<(Principal, u64)> = s.miner_to_mined_block
-            .iter()
-            .map(|(principal, block_count)| (principal.clone(), block_count.clone()))
-            .collect();
-        principal_counts.sort_by(|a, b| b.1.cmp(&a.1));
-        let biggest: Vec<(Principal, u64)> = principal_counts.into_iter().take(20).collect();
-
         let mut result: BTreeSet<LeaderBoardEntry> = BTreeSet::default();
 
-        for (miner, _block_count) in biggest {
-            let (owner, block_count, miner_count): (Principal, u64, usize) = match
-                s.miner_to_owner.get(&miner)
-            {
-                Some(owner) => {
-                    let block_count = s.principal_to_miner
-                        .get(&owner)
-                        .map(|miners| {
-                            miners
-                                .iter()
-                                .map(|miner| *s.miner_to_mined_block.get(miner).unwrap_or(&0))
-                                .sum::<u64>()
-                        })
-                        .unwrap_or(0);
-
-                    let miner_count = s.principal_to_miner
-                        .get(&owner)
-                        .map(|miners| miners.len())
-                        .unwrap_or(0);
-
-                    (owner.clone(), block_count, miner_count)
-                }
-                None => { (Principal::anonymous(), 0, 0) }
-            };
+        for (owner, block_count) in s.miner_to_mined_block.iter() {
+            let miner_count = s.principal_to_miner.get(&owner).map_or(0, |miners| miners.len());
             result.insert(LeaderBoardEntry {
-                owner,
+                owner: owner.clone(),
                 miner_count,
-                block_count,
+                block_count: block_count.clone(),
             });
         }
 
-        result.iter().cloned().collect()
+        result.into_iter().take(10).collect()
     })
 }
 

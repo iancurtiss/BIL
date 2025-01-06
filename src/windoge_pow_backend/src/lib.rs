@@ -1,5 +1,5 @@
 use candid::{ CandidType, Principal };
-use memory::{Block, Transaction};
+use memory::{block_count, Block, Transaction};
 use serde::{ Deserialize, Serialize };
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -54,6 +54,8 @@ pub struct State {
     pub mempool: Vec<Transaction>,
 
     pub pending_balance: BTreeMap<Principal, u64>,
+
+    pub updated_miners: Vec<Principal>
 }
 
 impl State {
@@ -85,11 +87,9 @@ impl State {
             mempool: Vec::new(),
 
             pending_balance: BTreeMap::default(),
-        }
-    }
 
-    pub fn mined_block_count(&self) -> u64 {
-        self.miner_to_mined_block.values().sum()
+            updated_miners: Vec::new()
+        }
     }
 
     pub fn new_miner(&mut self, miner: Principal, caller: Principal, block_index: u64) {
@@ -99,7 +99,7 @@ impl State {
     }
 
     pub fn current_rewards(&self) -> u64 {
-        COINBASE_REWARDS >> (self.mined_block_count() / BLOCK_HALVING)
+        COINBASE_REWARDS >> (block_count() / BLOCK_HALVING)
     }
 }
 

@@ -5,11 +5,11 @@ use std::{ cell::RefCell, hash::Hasher };
 use serde::{ Deserialize, Serialize };
 
 const LEDGER_ID: &str = "hx36f-waaaa-aaaai-aq32q-cai";
-const CHUNK_SIZE: u64 = 1000000; // 1M hashes
+const CHUNK_SIZE: u64 = 200000; // 200k hashes
 
 type Hash = u128;
 
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 struct Transaction {
     sender: Principal,
     recipient: Principal,
@@ -17,7 +17,7 @@ struct Transaction {
     timestamp: u64,
 }
 
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Block {
     pub header: BlockHeader,
     transactions: Vec<Transaction>,
@@ -25,7 +25,7 @@ pub struct Block {
     hash: Hash,
 }
 
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BlockHeader {
     version: u32,
     pub height: u64,
@@ -72,7 +72,7 @@ pub async fn find_solution() {
 
     let should_update_stats = mutate_state(|s| {
         s.mining_cycle += 1;
-        s.mining_cycle % 5 == 0
+        s.mining_cycle % 2 == 0
     });
 
     if should_update_stats {
@@ -218,10 +218,10 @@ impl MinerState {
             time_spent_mining: 0,
             mining_start_time: 0,
             mining_start_cycles: 0,
-            mining_temp_time: 0,
+            mining_temp_time: ic_cdk::api::time(),
             mining_temp_cycles: 0,
             current_block: None,
-            miner_id: 0,
+            miner_id: 1,
             mining_cycle: 0,
         }
     }
