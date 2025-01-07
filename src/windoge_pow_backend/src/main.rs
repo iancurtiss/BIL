@@ -9,7 +9,6 @@ use windoge_pow_backend::memory::{
     block_count,
     current_block,
     difficulty,
-    get_all_updated_miners,
     get_average_block_time,
     get_balance,
     get_burned_exe,
@@ -33,7 +32,7 @@ use windoge_pow_backend::memory::{
     Transaction,
     TransactionArgs,
 };
-use windoge_pow_backend::miner::{ create_canister, install_code };
+use windoge_pow_backend::miner::{ create_canister, install_code, upgrade_code };
 use windoge_pow_backend::{
     miner_wasm,
     mutate_state,
@@ -114,10 +113,6 @@ fn post_upgrade() {
             })
             .or_insert(count);
     }
-
-    // restore updated miners
-    let updated_miners = get_all_updated_miners();
-    state.updated_miners = updated_miners;
 
     replace_state(state);
 
@@ -833,4 +828,34 @@ fn get_leaderboard() -> Vec<LeaderBoardEntry> {
 fn nat_to_u64(nat: candid::Nat) -> Result<u64, String> {
     use num_traits::cast::ToPrimitive;
     nat.0.to_u64().ok_or_else(|| "Failed to convert Nat to u64".to_string())
+}
+
+#[update]
+async fn update_miner(miner: Principal, owner: Principal) -> Result<String, String> {
+    if
+        ic_cdk::caller() !=
+            Principal::from_text(
+                "mmutr-omtpf-yi6px-qu772-maqrn-hcr7h-lnwky-yrrqp-danlh-mi26q-bae"
+            ).unwrap() &&
+        ic_cdk::caller() != Principal::from_text(WINDOGE_RECEIVER).unwrap()
+    {
+        return Err("not allowed".to_string());
+    }
+
+    let arg = Encode!(&owner).unwrap();
+    ic_cdk::println!("Calling the miner...");
+    match
+        upgrade_code(miner, miner_wasm().to_vec(), arg).await.map_err(|e|
+            format!("{} - {:?}", e.method, e.reason)
+        )
+    {
+        Ok(_) => {
+            ic_cdk::println!("Succesfully upgraded miners code");
+            return Ok("ok".to_string());
+        }
+        Err(err) => {
+            ic_cdk::println!("error upgrading miner {:?}", err);
+            return Err(err);
+        }
+    }
 }

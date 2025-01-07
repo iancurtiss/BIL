@@ -50,6 +50,7 @@ service : {
     create_transaction: (transaction: TransactionArgs) -> (variant { Ok : text; Err : text });
     spawn_miner: (block: nat64) -> (variant { Ok : principal; Err : text });
     topup_miner: (miner: principal, block: nat64) -> (variant { Ok : text; Err : text });
+    update_miner: (miner: principal, owner: principal) -> (variant { Ok : text; Err : text });
     get_all_stats: () -> (vec Stats) query;
     get_all_blocks: () -> (vec Block) query;
     get_current_block: () -> (opt Block) query;
