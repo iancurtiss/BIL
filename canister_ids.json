@@ -4,5 +4,8 @@
   },
   "windoge_pow_backend": {
     "ic": "hx36f-waaaa-aaaai-aq32q-cai"
+  },
+  "spawner" : {
+    "ic" : "fghm5-vaaaa-aaaao-qjxjq-cai"
   }
 }

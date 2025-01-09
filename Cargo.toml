@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/windoge_pow_backend",
-    "src/windoge_miner"
+    "src/windoge_miner",
+    "src/spawner"
 ]
 resolver = "2"

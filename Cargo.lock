@@ -2231,6 +2231,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "spawner"
+version = "0.1.0"
+dependencies = [
+ "candid",
+ "ic-base-types",
+ "ic-cdk 0.16.0",
+ "ic-management-canister-types",
+ "serde",
+]
+
+[[package]]
 name = "stacker"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"

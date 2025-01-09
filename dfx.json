@@ -10,6 +10,12 @@
       "package": "windoge_miner",
       "gzip": true,
       "type": "rust"
+    },
+    "spawner": {
+      "candid": "src/spawner/spawner.did",
+      "package": "spawner",
+      "gzip": true,
+      "type": "rust"
     }
   },
   "defaults": {

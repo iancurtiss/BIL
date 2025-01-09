@@ -1,0 +1,3 @@
+service : {
+    "spawn_miner": (owner: principal) -> (variant { Ok: principal; Err: text });
+}

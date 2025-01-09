@@ -1,0 +1,14 @@
+[package]
+name = "spawner"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+candid = "0.10"
+ic-cdk = "0.16"
+ic-management-canister-types = { git = "https://github.com/dfinity/ic/", rev = "3025f56fc3d6babd64ec1bc84d61cf937fd2b633" }
+ic-base-types = { git = "https://github.com/dfinity/ic/", rev = "3025f56fc3d6babd64ec1bc84d61cf937fd2b633" }
+serde = "1.0.209"
